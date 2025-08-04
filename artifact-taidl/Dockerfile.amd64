@@ -1,0 +1,33 @@
+FROM amd64/ubuntu:jammy
+
+# Base dependencies for TAIDL, plotting, and xla-debug build
+RUN apt-get update && \
+    apt-get install -y \
+        wget \
+        curl \
+        cmake \
+        make \
+        git \
+        g++ \
+        python3 \
+        python3-pip \
+        python3-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip3 install \
+    jax[cuda12]==0.4.37 \
+    numpy==1.26.4 \
+    scipy==1.13.1 \
+    matplotlib==3.8.4 \
+    pandas==2.2.1 \
+    nanobind==2.8.0 && pip3 cache purge
+
+WORKDIR /taidl
+
+# Build xla-debug on container start
+COPY ../xla-debug /xla-debug
+RUN cd /xla-debug && ./build.sh
+
+CMD ["bash"]

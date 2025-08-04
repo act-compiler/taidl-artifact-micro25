@@ -1,0 +1,7 @@
+[MASTER]
+
+# Maximum number of characters on a single line.
+max-line-length=100
+
+# Exceptions that will emit a warning when caught.
+overgeneral-exceptions=builtins.BaseException
