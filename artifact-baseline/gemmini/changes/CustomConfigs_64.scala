@@ -54,6 +54,7 @@ object GemminiCustomConfigs {
     meshColumns = 64,
 
     has_training_convs = false,
+    has_normalizations = true,
 
     sp_capacity = CapacityInKilobytes(1024),
     acc_capacity = CapacityInKilobytes(4096),

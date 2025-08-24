@@ -1,0 +1,2 @@
+Model,HBM size,TAIDL-TO (CPU) (ms),TAIDL-TO (GPU) (ms),Gemmini Spike (ms)
+I-BERT,33434368,8549.006,121.496,3537000.000

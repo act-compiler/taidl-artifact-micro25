@@ -11,8 +11,12 @@ exo_tests = exo_12544x256x64 \
 	exo_512x512x512 \
 	exo_784x1024x256
 
+ibert_tests = ibert
+
 ifdef TILED_MATMUL_TEST
 tests = $(tiled_matmul_tests)
+else ifdef IBERT_TEST
+tests = $(ibert_tests)
 else
 tests = $(exo_tests)
 endif

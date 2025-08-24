@@ -1,35 +1,93 @@
 import argparse
 import csv
+import importlib
 import os
 import sys
 
 import numpy as np
-from kernels import *
+import pandas as pd
+from exo import matmul_4, matmul_6, matmul_14, matmul_16, matmul_27, matmul_512
+from tiled_matmul import tiled_matmul
 
-MATMUL_CSV_FILE = "taidl-gemmini-tiled-matmul.csv"
-EXO_CSV_FILE = "taidl-gemmini-exo.csv"
-
+# Start: Importing the generated API module #
 base_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(base_dir))
 
-# Import decorator functions from sim_16 by default
-target_dir = os.path.join(os.path.dirname(base_dir), "sim_16")
-sys.path.append(target_dir)
-from decorator import gen_arguments, set_simulation_backend, verifier, gpu_check
+kernel_decorator = {}
+set_simulation_backend = {}
+gen_arguments = {}
+verifier = {}
+gpu_check = {}
+oracle_api = {}
 
-log_path = os.path.join(
-    os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    ),
-    "plots", "csv",
-)
+for DIM in [16, 64, 256, 1024]:
+    _decorator = importlib.import_module(f"sim_{DIM}.decorator")
+    kernel_decorator[DIM] = _decorator.kernel
+    set_simulation_backend[DIM] = _decorator.set_simulation_backend
+    gen_arguments[DIM] = _decorator.gen_arguments
+    verifier[DIM] = _decorator.verifier
+    gpu_check[DIM] = _decorator.gpu_check
 
-exo_kernels = {
-    "exo_12544x64x256": (matmul_6, 12544, 256, 64),
-    "exo_12544x256x64": (matmul_4, 12544, 64, 256),
-    "exo_784x1024x256": (matmul_27, 784, 256, 1024),
-    "exo_3136x512x128": (matmul_14, 3136, 128, 512),
-    "exo_3136x128x512": (matmul_16, 3136, 512, 128),
-    "exo_512x512x512": (matmul_512, 512, 512, 512),
+    _api = importlib.import_module(f"sim_{DIM}.api")
+    oracle_api[DIM] = _api
+# End: Importing the generated API module #
+
+# List of kernels to benchmark (defined in exo.py and tiled_matmul.py)
+tiled_matmul_kernel = tiled_matmul
+exo_kernels = [
+    (matmul_6, 12544, 64, 256),
+    (matmul_4, 12544, 256, 64),
+    (matmul_27, 784, 1024, 256),
+    (matmul_14, 3136, 512, 128),
+    (matmul_16, 3136, 128, 512),
+    (matmul_512, 512, 512, 512),
+]
+
+# Golden Input-output pairs to validate the simulations
+golden_validation_dir = os.path.join(base_dir, "data")
+
+# Saving results as CSV
+repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(base_dir)))
+csv_dir = os.path.join(repo_dir, "plots", "csv")
+
+GEMMINI_MATMUL_CSV = "gemmini-tiled-matmul.csv"
+tiled_matmul_csv_fields = [
+    'DIM',
+    'I',
+    'df',
+    'hbm',
+    'cpu_runtime',
+    'gpu_runtime',
+    'spike_runtime'
+]
+tiled_matmul_csv_header = {
+    'DIM': 'DIM',
+    'I': 'I',
+    'df': 'Dataflow',
+    'hbm': 'HBM size',
+    'cpu_runtime': 'TAIDL-TO (CPU) (ms)',
+    'gpu_runtime': 'TAIDL-TO (GPU) (ms)',
+    'spike_runtime': 'Gemmini Spike (ms)'
+}
+
+GEMMINI_EXO_CSV = "gemmini-exo.csv"
+exo_csv_fields = [
+    'kernel',
+    'N',
+    'M',
+    'K',
+    'hbm',
+    'cpu_runtime',
+    'gpu_runtime',
+]
+exo_csv_header = {
+    'kernel': 'Kernel',
+    'N': 'N',
+    'M': 'M',
+    'K': 'K',
+    'hbm': 'HBM size',
+    'cpu_runtime': 'TAIDL-TO (CPU) (ms)',
+    'gpu_runtime': 'TAIDL-TO (GPU) (ms)',
 }
 
 
@@ -60,11 +118,11 @@ def load_file_inputs(kernel_name):
                     continue
                 parts = line.split()
                 if len(parts) < 2:
-                    print(f"Warning: Invalid line format at line {i + 1}: {line}")
+                    print(f"Warning: Invalid line format at line {i + 1}: {line}.")
                     i += 1
                     continue
                 var_name = parts[0]
-                shape = [int(dim) for dim in parts[1:]]
+                shape = [int(DIM) for DIM in parts[1:]]
                 total_elements = np.prod(shape)
                 data_values = []
                 i += 1
@@ -76,12 +134,12 @@ def load_file_inputs(kernel_name):
                     i += 1
                 if len(data_values) < total_elements:
                     print(
-                        f"Warning: Not enough data for variable {var_name}. Expected {total_elements}, got {len(data_values)}"
+                        f"Warning: Not enough data for variable {var_name}. Expected {total_elements}, got {len(data_values)}."
                     )
                     continue
                 elif len(data_values) > total_elements:
                     print(
-                        f"Warning: Too much data for variable {var_name}. Expected {total_elements}, got {len(data_values)}"
+                        f"Warning: Too much data for variable {var_name}. Expected {total_elements}, got {len(data_values)}."
                     )
                     data_values = data_values[:total_elements]
                 array = np.array(data_values, dtype=np.float64)
@@ -104,205 +162,219 @@ def load_file_inputs(kernel_name):
     return all_test_data
 
 
-def run_gemmini_exo(name, iterations):
-    gen_kernel, I, J, K = exo_kernels[name]
+def run_benchmark(benchmark, trials, kernel_type):
+    kernel = benchmark['benchmark']
+    DIM = benchmark['DIM']
 
-    # Load all inputs and outputs from kernel directory
-    test_data = load_file_inputs(f"{name}")
+    if kernel_type == "tiled_matmul":
+        name = f"matmul_{DIM}_{benchmark['I']}"
+    else:  # kernel_type == "exo"
+        name = f"exo_{benchmark['N']}x{benchmark['M']}x{benchmark['K']}"
 
+    inputs, compile_time = kernel('fsim-compile')()
+
+    # Load and verify test data
+    test_data = load_file_inputs(name)
     verified = 0
 
     if not test_data:
-        print(f"No test data found for {kernel_func.__name__}_SIZE{block_size}, cannot verify")
+        print(f"Warning: No test data found for {name}, cannot verify.")
 
-    kernel = gen_kernel()
-    compile_time = 0
-
-    # Run verification on all test data files
-    for file_inputs, gold, file_name in test_data:
-        if compile_time == 0:  # Compile only once
-            inputs, compile_time = kernel("fsim-compile")(*file_inputs)
-
-        ans, tmp_time = kernel("fsim")(*file_inputs)
-
-        if verifier(ans, gold):
+    for file_inputs, outputs, _ in test_data:
+        ans, _ = kernel('fsim')(*file_inputs)
+        if verifier[DIM](ans, outputs):
             verified += 1
 
-    res = 0
-    for _ in range(iterations):
-        # Random inputs after verification
-        a = np.random.randint(low=-2, high=3, size=(I, J), dtype=np.int8)
-        b = np.random.randint(low=-2, high=3, size=(J, K), dtype=np.int8)
-        ans, tmp_time = kernel("fsim")(a, b)
-        res += tmp_time
-
-    avg_runtime = res / iterations
-    verified_str = f"{verified}/{len(test_data)}" if test_data else "0/0"
-    verified_status = f"VERIFIED" if verified == len(test_data) and test_data else "FAILED"
-    print(f"{name} | Compile: {compile_time:.3f}ms | Runtime: {avg_runtime:.3f}ms | {verified_status} {verified_str}")
-
-    return compile_time, avg_runtime
-
-
-def run_gemmini_kernel(iterations=16, trials=1, xla_while=0, df=0, DIM=16):
-    kernel, hbm_size = gemmini_kernel(DIM, iterations, df=df, xla_while=xla_while)
-    inputs, compile_time = kernel("fsim-compile")()
-
-    # Load all inputs and outputs from kernel directory
-    test_data = load_file_inputs(f"matmul_{DIM}_{iterations}")
-
-    if not test_data:
-        print(f"No test data found for {kernel_func.__name__}_SIZE{block_size}, cannot verify")
-
-    compile_time = 0
-    verified = 0
-
-    # Run verification on all test data files
-    for file_inputs, gold, file_name in test_data:
-        if compile_time == 0:  # Compile only once
-            inputs, compile_time = kernel("fsim-compile")(*file_inputs)
-
-        ans, tmp_time = kernel("fsim")(*file_inputs)
-
-        if verifier(ans, gold):
-            verified += 1
-
-    res = 0
+    # Performance measurement
+    total_time = 0
     for _ in range(trials):
-        ans, tmp_time = kernel("fsim")(*gen_arguments(inputs))
-        res += tmp_time
+        test_inputs = gen_arguments[DIM](inputs)
+        _, run_time = kernel('fsim')(*test_inputs)
+        total_time += run_time
 
-    avg_runtime = res / trials
-    dataflow = "WS" if df == 1 else "OS"
-    verified_str = f"{verified}/{len(test_data)}" if test_data else "0/0"
-    verified_status = f"VERIFIED" if verified == len(test_data) and test_data else "FAILED"
-    print(f"matmul_{dataflow} DIM:{DIM} I:{iterations} | Compile: {compile_time:.3f}ms | Runtime: {avg_runtime:.3f}ms | {verified_status} {verified_str}")
+    avg_runtime = total_time / trials
+    verified_stat = f"{verified}/{len(test_data)}" if test_data else "0/0"
+    if test_data:
+        verified_summary = "VERIFIED" if verified == len(test_data) else "VERIFICATION FAILED"
+    else:
+        verified_summary = "NOT VERIFIED"
 
-    return compile_time, avg_runtime, hbm_size
+    if kernel_type == "tiled_matmul":
+        print(
+            f"matmul_{benchmark['df']} DIM:{benchmark['DIM']} I:{benchmark['I']} | "
+            f"Compile: {compile_time:.3f}ms | Runtime: {avg_runtime:.3f}ms | "
+            f"{verified_summary} {verified_stat}"
+        )
+    else:  # kernel_type == "exo"
+        print(
+            f"{benchmark['kernel']} N:{benchmark['N']} M:{benchmark['M']} K:{benchmark['K']} | "
+            f"Compile: {compile_time:.3f}ms | Runtime: {avg_runtime:.3f}ms | "
+            f"{verified_summary} {verified_stat}"
+        )
+
+    return avg_runtime
 
 
-exo_csv_data = {}
-matmul_csv_data = {}
+def save_results(results, kernel_type):
+    os.makedirs(csv_dir, exist_ok=True)
+
+    if kernel_type == "tiled_matmul":
+        csv_path = os.path.join(csv_dir, GEMMINI_MATMUL_CSV)
+        csv_fields = tiled_matmul_csv_fields
+        csv_header = tiled_matmul_csv_header
+    else:  # kernel_type == "exo"
+        csv_path = os.path.join(csv_dir, GEMMINI_EXO_CSV)
+        csv_fields = exo_csv_fields
+        csv_header = exo_csv_header
+
+    with open(csv_path, mode='w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=csv_fields, restval='NA', extrasaction='ignore')
+        writer.writerow(csv_header)
+        writer.writerows(results)
+
+    if kernel_type == "tiled_matmul":
+        print("\nCompleted benchmarking all Gemmini(DIM=*) TAIDL-TOs for Tiled MatMul kernels.")
+        print(f"Results saved to plots/csv/{GEMMINI_MATMUL_CSV}.")
+    else:  # kernel_type == "exo"
+        print("\nCompleted benchmarking Gemmini(DIM=16) TAIDL-TO for Exo kernels.")
+        print(f"Results saved to plots/csv/{GEMMINI_EXO_CSV}.")
 
 
-def run_all(platform, trials):
-    set_simulation_backend(platform)
-    print("\nGemmini Exo")
-    print(f"{platform} Backend", flush=True)
-    # All exo kernels run with DIM=16 only (using sim_16 directory)
-    for name, value in exo_kernels.items():
-        compile_time, runtime = run_gemmini_exo(name, trials)
-        if platform == "CPU":
-            exo_csv_data[name] = [
-                name,
-                f"{compile_time:.3f}",
-                0.0,
-                f"{runtime:.3f}",
-                0.0,
-            ]
-        elif platform == "GPU":
-            exo_csv_data[name][2] = f"{compile_time:.3f}"
-            exo_csv_data[name][4] = f"{runtime:.3f}"
-
-    print("\nGemmini tiled matmul")
-    print(f"{platform} Backend", flush=True)
+# Start: Tiled MatMul specific functions #
+def tiled_matmul_init(DIM, log2I_max):
+    benchmarks = []
     use_loop = 4
 
-    # Run gemmini_kernel with DIM=16, 64, 256
-    DIMs = [16, 64, 256, 1024]
-    i_range = {
-        "16": 8,
-        "64": 6,
-        "256": 4,
-        "1024": 0
-    }
-    for DIM in DIMs:
-        for i in range(0, i_range[str(DIM)] + 1):
-            compile_time, runtime, hbm_size = run_gemmini_kernel(
-                2**i, trials, (i > use_loop), df=1, DIM=DIM
-            )
-            name = f"WS{i}_DIM{DIM}"
-            if platform == "CPU":
-                matmul_csv_data[name] = [
-                    hbm_size,
-                    DIM,
-                    2**i,
-                    "WS",
-                    f"{compile_time:.3f}",
-                    0.0,
-                    f"{runtime:.3f}",
-                    0.0,
-                ]
-            elif platform == "GPU":
-                matmul_csv_data[name][5] = f"{compile_time:.3f}"
-                matmul_csv_data[name][7] = f"{runtime:.3f}"
-        for i in range(0, i_range[str(DIM)] + 1):
-            compile_time, runtime, hbm_size = run_gemmini_kernel(
-                2**i, trials, (i > use_loop), df=0, DIM=DIM
-            )
-            name = f"OS{i}_DIM{DIM}"
-            if platform == "CPU":
-                matmul_csv_data[name] = [
-                    hbm_size,
-                    DIM,
-                    2**i,
-                    "OS",
-                    f"{compile_time:.3f}",
-                    0.0,
-                    f"{runtime:.3f}",
-                    0.0,
-                ]
-            elif platform == "GPU":
-                matmul_csv_data[name][5] = f"{compile_time:.3f}"
-                matmul_csv_data[name][7] = f"{runtime:.3f}"
+    for df in [0, 1]:
+        for i in range(0, log2I_max + 1):
+            benchmark, hbm_size = tiled_matmul_kernel(kernel_decorator[DIM],
+                                                      oracle_api[DIM],
+                                                      DIM=DIM,
+                                                      iterations=2**i,
+                                                      df=df,
+                                                      xla_while=(i > use_loop))
+            benchmarks.append({
+                'benchmark': benchmark,
+                'DIM': DIM,
+                'I': 2**i,
+                'df': "WS" if df == 1 else "OS",
+                'hbm': hbm_size,
+            })
+
+    tiled_matmul_preload_spike(benchmarks)
+
+    return benchmarks
 
 
-def run_i_bert(platform, trials):
-    set_simulation_backend(platform)
-    print("\nGemmini i-bert")
-    print(f"{platform} Backend")
-    kernel = i_bert()
-    inputs, compile_time = kernel("fsim-compile")()
-    res = 0
-    print(f"i-bert compile time: {compile_time:.3f} ms")
-    for i in range(trials):
-        ans, tmp_time = kernel("fsim")(*gen_arguments(inputs))
-        res += tmp_time
-    print(f"i-bert runtime: {res / trials:.3f} ms")
+def tiled_matmul_preload_spike(benchmarks):
+    csv_path = os.path.join(csv_dir, GEMMINI_MATMUL_CSV)
+    if not os.path.exists(csv_path):
+        return
+
+    data = pd.read_csv(csv_path)
+    for benchmark in benchmarks:
+        matching_rows = data[
+            (data[tiled_matmul_csv_header['DIM']] == benchmark['DIM']) &
+            (data[tiled_matmul_csv_header['I']] == benchmark['I']) &
+            (data[tiled_matmul_csv_header['df']] == benchmark['df'])
+        ]
+        name = f"matmul_{benchmark['DIM']}_{benchmark['I']}"
+        if matching_rows.empty:
+            print(f"Warning: No matching Gemmini Spike for {name}, skipping.")
+            continue
+
+        benchmark['spike_runtime'] = matching_rows[tiled_matmul_csv_header['spike_runtime']].values[0]  # noqa: E501
+# End: Tiled MatMul specific functions #
+
+
+# Start: Exo specific functions #
+def exo_init(DIM=16):
+    benchmarks = []
+
+    for exo_kernel in exo_kernels:
+        kernel_func, N, M, K = exo_kernel
+        benchmark, hbm_size = kernel_func(kernel_decorator[DIM], oracle_api[DIM])
+        benchmarks.append({
+            'benchmark': benchmark,
+            'DIM': DIM,
+            'kernel': kernel_func.__name__,
+            'N': N,
+            'M': M,
+            'K': K,
+            'hbm': hbm_size,
+        })
+
+    return benchmarks
+# End: Exo specific functions #
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--trials', type=int, default=1)
+    parser.add_argument('--trials', type=int, default=1, help="number of trial runs")
+    parser.add_argument(
+        '--kernel_type',
+        type=str,
+        choices=['tiled_matmul', 'exo'],
+        required=True,
+        help="which type of kernel to benchmark")
+
     args = parser.parse_args()
+    trials = args.trials
 
-    run_all("CPU", args.trials)
+    if args.kernel_type == 'tiled_matmul':
+        DIMS = [16, 64, 256, 1024]
+        log2I_max = {16: 8, 64: 6, 256: 4, 1024: 0}
 
-    if gpu_check():
-        run_all("GPU", args.trials)
+        benchmarks = {}
+        for DIM in DIMS:
+            benchmarks[DIM] = tiled_matmul_init(DIM, log2I_max[DIM])
 
-    # Generate EXO csv
-    os.makedirs(log_path, exist_ok=True)
-    exo_csv_path = os.path.join(log_path, EXO_CSV_FILE)
-    matmul_csv_path = os.path.join(log_path, MATMUL_CSV_FILE)
+        # CPU Backend
+        print("\nSimulation Backend: \x1b[4mCPU\x1b[0m")
+        for DIM in DIMS:
+            set_simulation_backend[DIM]("CPU")
+            for benchmark in benchmarks[DIM]:
+                cpu_runtime = run_benchmark(benchmark, trials, "tiled_matmul")
+                benchmark['cpu_runtime'] = f'{cpu_runtime:.3f}'
 
-    with open(exo_csv_path, mode='w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            'Kernel', 'CPU Compile Time (ms)', 'GPU Compile Time (ms)',
-            'CPU Runtime (ms)', 'GPU Runtime (ms)'
-        ])
-        for row in exo_csv_data.values():
-            writer.writerow(row)
-        print("Wrote gemmini-exo to", exo_csv_path)
+        # GPU Backend (if available)
+        if gpu_check[DIM]():
+            print("\nSimulation Backend: \x1b[4mGPU\x1b[0m")
+            for DIM in DIMS:
+                set_simulation_backend[DIM]("GPU")
+                for benchmark in benchmarks[DIM]:
+                    gpu_runtime = run_benchmark(benchmark, trials, "tiled_matmul")
+                    benchmark['gpu_runtime'] = f'{gpu_runtime:.3f}'
 
-    with open(matmul_csv_path, mode='w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            'HBM Size', 'DIM', 'I', 'Dataflow',
-            'CPU Compile Time (ms)', 'GPU Compile Time (ms)',
-            'CPU Runtime (ms)', 'GPU Runtime (ms)'
-        ])
-        for row in matmul_csv_data.values():
-            writer.writerow(row)
-        print("Wrote gemmini-matmul to", matmul_csv_path)
+        results = []
+        for DIM in DIMS:
+            results.extend(benchmarks[DIM])
+
+        results = sorted(results, key=lambda x: x['df'])
+        save_results(results, "tiled_matmul")
+
+        exit(0)
+
+    else:  # args.kernel_type == 'exo'
+        DIM = 16  # Exo kernels are only run with DIM=16
+
+        benchmarks = exo_init(DIM)
+
+        # CPU Backend
+        print("\nSimulation Backend: \x1b[4mCPU\x1b[0m")
+        set_simulation_backend[DIM]("CPU")
+        for benchmark in benchmarks:
+            cpu_runtime = run_benchmark(benchmark, trials, "exo")
+            benchmark['cpu_runtime'] = f'{cpu_runtime:.3f}'
+
+        # GPU Backend (if available)
+        if gpu_check[DIM]():
+            print("\nSimulation Backend: \x1b[4mGPU\x1b[0m")
+            set_simulation_backend[DIM]("GPU")
+            for benchmark in benchmarks:
+                gpu_runtime = run_benchmark(benchmark, trials, "exo")
+                benchmark['gpu_runtime'] = f'{gpu_runtime:.3f}'
+
+        save_results(benchmarks, "exo")
+
+        exit(0)

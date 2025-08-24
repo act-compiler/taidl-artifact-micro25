@@ -160,7 +160,7 @@ void gemm_free(uint32_t addr) {
   return;
 }
 
-typedef struct matmul_Context {
+typedef struct matmul_Context { 
 
   struct ConfigLoad {
       int_fast32_t src_stride;

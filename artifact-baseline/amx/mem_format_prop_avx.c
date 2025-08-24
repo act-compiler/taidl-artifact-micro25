@@ -31,7 +31,7 @@ float out[NUM_ZMM][ZMM_WIDTH_F32]; // zmm[4..31] are outputs
 
 __m512 zmm[NUM_ZMM];
 
-void __attribute__((always_inline)) avx_kernel() {
+void __attribute__((always_inline)) inline avx_kernel() {
 #pragma GCC unroll 28
   for (int i = NUM_ZMM - 1; i >= 4; i--)
     zmm[i] = _mm512_setzero(); // vpxorq

@@ -1,9 +1,8 @@
 CFLAGS = -O1 -march=sapphirerapids
 CC = gcc
-BIN += cnn_inference_amx cnn_inference_mix
-BIN += rnn_inference_amx
-BIN += sgemm_avx
-BIN += mem_format_prop_avx
+BIN = cnn_inference_amx cnn_inference_mix rnn_inference_amx sgemm_avx mem_format_prop_avx
+blocks = 4
+unroll = 1
 
 all: $(BIN)
 

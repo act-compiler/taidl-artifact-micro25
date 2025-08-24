@@ -2,8 +2,9 @@
 import os, sys
 import numpy as np
 import ast
-from utils import *
 from collections import defaultdict
+
+from .utils import *
 
 TARGET_NAME = "{{API_NAME}}"
 
@@ -38,6 +39,12 @@ max_func_s8 {
   lhs = s8[] parameter(0)
   rhs = s8[] parameter(1)
   ROOT max = s8[] maximum(lhs, rhs)
+}
+
+max_func_s32 {
+  lhs = s32[] parameter(0)
+  rhs = s32[] parameter(1)
+  ROOT max = s32[] maximum(lhs, rhs)
 }
 """
 
@@ -327,6 +334,18 @@ lhs_loc, lhs_type = lhs_util(attrs, state, global_counters, lvars, constants, {{
 line = f'{lhs_loc} = {lhs_type} tanh({rhs_loc})'
 output.append(line)
 
+### TEMPLATE: SQRT ###
+rhs_loc = parameter_util(global_counters,  attrs, state, lvars, constants, {{in}})
+lhs_loc, lhs_type = lhs_util(attrs, state, global_counters, lvars, constants, {{lhs}}, {{type}}, {{size}})
+line = f'{lhs_loc} = {lhs_type} sqrt({rhs_loc})'
+output.append(line)
+
+### TEMPLATE: RSQRT ###
+rhs_loc = parameter_util(global_counters,  attrs, state, lvars, constants, {{in}})
+lhs_loc, lhs_type = lhs_util(attrs, state, global_counters, lvars, constants, {{lhs}}, {{type}}, {{size}})
+line = f'{lhs_loc} = {lhs_type} rsqrt({rhs_loc})'
+output.append(line)
+
 ### TEMPLATE: BITCAST_CONVERT ###
 rhs_loc = parameter_util(global_counters,  attrs, state, lvars, constants, {{in}})
 lhs_loc, lhs_type = lhs_util(attrs, state, global_counters, lvars, constants, {{lhs}}, {{type}}, {{size}})
@@ -450,8 +469,8 @@ output.append(line)
 ### TEMPLATE: BROADCAST_DIM ###
 b_loc = parameter_util(global_counters,  attrs, state, lvars, constants, {{A}})
 lhs_loc, lhs_type = lhs_util(attrs, state, global_counters, lvars, constants, {{lhs}}, {{type}}, {{size}})
-dims = create_num_str({{size}})
-line = f"{lhs_loc} = {lhs_type} broadcast({b_loc}), dimensions={{0,1}}"
+dims = {{dims}}
+line = f"{lhs_loc} = {lhs_type} broadcast({b_loc}), dimensions={dims}"
 output.append(line)
 
 ### TEMPLATE: MAXIMUM ###
@@ -529,7 +548,6 @@ for {{loop_var}} in range(loop_range):
 tab lvars['{{loop_var}}'] = {{loop_var}}
 tab global_counters["loop_counter"] += 1
 ### TEMPLATE: SEMANTIC_INIT ###
-from utils import *
 def semantic_init(hbm_size):
 	global_counters = {
 		'hbm': {

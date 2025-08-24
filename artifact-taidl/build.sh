@@ -15,4 +15,4 @@ else
 fi
 
 echo "Building TAIDL image for $ARCH using $DOCKERFILE"
-docker build -f "$DOCKERFILE" -t "$IMAGE_NAME" . 
+docker build -f "$DOCKERFILE" -t "$IMAGE_NAME" .

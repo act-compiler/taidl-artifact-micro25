@@ -98,7 +98,8 @@ uint8_t avx_out[NUM_BLOCKS][3][ZMM_WIDTH_F32]; // zmm[29..31] are outputs
 
 __m512 zmm[NUM_ZMM];
 
-void __attribute__((always_inline)) amx_avx_kernel(struct __tile_config *cfg) {
+void __attribute__((always_inline)) inline amx_avx_kernel(
+    struct __tile_config *cfg) {
   __m512i zmm_i32;
   __mmask16 k2 = _cvtu32_mask16(0xffff);
   zmm[10] = _mm512_loadu_ps(in_z10);

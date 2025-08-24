@@ -41,8 +41,14 @@ int main() {
   static elem_t D[I * DIM][DIM] row_align(1);
   static elem_t C[I * DIM][DIM] row_align(1);
 
-  // Generate 5 datasets with different random input ranges
-  int ranges[5][2] = {{-3, 3}, {-7, 7}, {-15, 15}, {-31, 31}, {-63, 63}};
+  // Generate 5 data sets with different random input ranges
+  int ranges[5][2] = {
+    {-3, 3},
+    {-7, 7},
+    {-15, 15},
+    {-31, 31},
+    {-63, 63}
+  };
 
   for (int data_set = 0; data_set < 5; data_set++) {
     int range_min = ranges[data_set][0];

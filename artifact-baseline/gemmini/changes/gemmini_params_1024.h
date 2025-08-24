@@ -80,5 +80,6 @@ typedef uint32_t acc_scale_t_bits;
 #define ACC_READ_SMALL_WIDTH
 
 #define HAS_FIRST_LAYER_OPTIMIZATIONS
+#define HAS_NORMALIZATIONS
 
 #endif // GEMMINI_PARAMS_H

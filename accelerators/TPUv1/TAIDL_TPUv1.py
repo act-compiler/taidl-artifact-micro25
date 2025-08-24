@@ -1,22 +1,24 @@
+import importlib
 import os
 import sys
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-target_dir = os.path.join(os.path.dirname(base_dir), "idl")
-sys.path.append(target_dir)
 
-from accelerator import Accelerator
+repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.dirname(repo_dir))
 
-tpu = Accelerator("TPUv1IDL")
+_accelerator = importlib.import_module("idl.accelerator")
+Accelerator = _accelerator.Accelerator
+
+tpu = Accelerator("TPUv1")
 
 # Define Constants
 UNB_MAX_ROWS = 98304
 ACC_MAX_ROWS = 4096
 
 # Define Data Models
-tpu.add_data_model("unb", "98304","256xs8")
-tpu.add_data_model("acc", "4096","256xs32")
+tpu.add_data_model("unb", "98304", "256xs8")
+tpu.add_data_model("acc", "4096", "256xs32")
 tpu.add_data_model("weights", "", "256x256xs8")
-tpu.add_data_model("fifo", "4","256x256xs8")
+tpu.add_data_model("fifo", "4", "256x256xs8")
 
 # Define State
 tpu.add_initial_state("fifo_occupancy", 0)
@@ -130,5 +132,4 @@ ELSE
 """
 )
 
-# tpu.generate_modules()
-tpu.generate_api()
+tpu.generate_sim()

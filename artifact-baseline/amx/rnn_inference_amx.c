@@ -48,7 +48,8 @@ int8_t in_t2[TILE_SIZE_I8 + 0x40 * (NUM_BLOCKS - 1)], in_t3[0x800 * NUM_BLOCKS];
 int8_t *in_t4 = in_t3 + 0x40;
 int32_t out[2][TILE_SIZE_I32]; // tmm[0..1] are outputs
 
-void __attribute__((always_inline)) amx_kernel(struct __tile_config *cfg) {
+void __attribute__((always_inline)) inline amx_kernel(
+    struct __tile_config *cfg) {
   _tile_loadconfig(cfg);
   _tile_zero(0);
   _tile_zero(1);

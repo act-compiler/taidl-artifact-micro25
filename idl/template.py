@@ -1,7 +1,7 @@
-templates = {}
 import os
 import re
-import shlex
+
+templates = {}
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -17,6 +17,7 @@ function_templates = {
     "DYNAMIC_UPDATE_SLICE": r'dynamic_update_slice\(%(?P<A>.*?),%(?P<B>.*?),(?P<dims>.*?)\);$',
     "CONSTANT": r'constant\((?P<const>.*?)\);$',
     "BROADCAST": r'broadcast\(%(?P<A>.*?)\);$',
+    "BROADCAST_DIM": r'broadcast_dim\(%(?P<A>.*?), (?P<dims>.*?)\);$',
     "BROADCAST_TYPE": r'broadcast_type\(%(?P<A>.*?)\);$',
     "MAXIMUM": r'maximum\(%(?P<A>.*?),%(?P<B>.*?)\);$',
     "CLAMP": r'clamp\((?P<A>.*?),%(?P<B>.*?),(?P<C>.*?)\);$',
@@ -26,6 +27,8 @@ function_templates = {
     "ADD": r'add\(%(?P<A>.*?),%(?P<B>.*?)\);$',
     "EXP": r'exp\(%(?P<in>.*?)\);$',
     "TANH": r'tanh\(%(?P<in>.*?)\);$',
+    "SQRT": r'sqrt\(%(?P<in>.*?)\);$',
+    "RSQRT": r'rsqrt\(%(?P<in>.*?)\);$',
     "SUBTRACT": r'subtract\(%(?P<A>.*?),%(?P<B>.*?)\);$',
     "MULTIPLY": r'multiply\(%(?P<A>.*?),%(?P<B>.*?)\);$',
     "REDUCE": r'reduce\(%(?P<A>.*?),%(?P<B>.*?),(?P<dims>.*?),(?P<to_apply>.*?)\);$',
@@ -42,6 +45,7 @@ line_pattern = r'%(?P<lhs>.*?):(?P<dim>.*?)(?P<operation>(<-|=|->))(?P<rhs>.*)$'
 
 
 def init_templates(filename="templates.txt"):
+    global templates
     filename = os.path.join(CUR_DIR, filename)
     if templates:
         return

@@ -160,7 +160,7 @@ void gemm_free(uint32_t addr) {
   return;
 }
 
-typedef struct matmul_Context {
+typedef struct matmul_Context { 
 
   struct ConfigLoad {
       int_fast32_t src_stride;
@@ -343,7 +343,7 @@ int main() {
   matmul6(ctxt, &c_scale, 0, A, B, C );
   gemmini_fence();
   unsigned long end = read_cycles();
-
+  
   #if OUTPUT
   printf("Starting matmul 6 exo lib with for loops\n");
   printf("Cycles taken: %u\n", end-start);

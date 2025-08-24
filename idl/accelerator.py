@@ -1,10 +1,10 @@
-from dataclasses import dataclass, field
-from typing import List
-from pathlib import Path
 import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List
 
-from template import *
-from utils import *
+from .template import *
+from .utils import *
 
 BASE_DIR = os.getcwd()
 
@@ -180,7 +180,7 @@ class Accelerator:
         self.instructions.append(new_instruction)
         return new_instruction
 
-    def generate_api(self, sim_directory: str = "sim") -> str:
+    def generate_sim(self, sim_directory: str = "sim") -> str:
         init_templates()
         gen_directory = os.path.join(BASE_DIR, sim_directory)
         Path(gen_directory).mkdir(parents=True, exist_ok=True)
@@ -210,7 +210,7 @@ class Accelerator:
         write_file(util_file, gen_directory + "/utils.py")
         write_file(decorator_file, gen_directory + "/decorator.py")
 
-        print(f"Generated {self.name} API")
+        print(f"Generated {self.name} TAIDL-TO API")
 
     def __generate_semantic_init(self) -> str:
         init_templates()

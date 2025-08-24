@@ -1,0 +1,6 @@
+Kernel,#AMX (#BLOCKS=4),#AVX-512 (#BLOCKS=4),#AMX (#BLOCKS=256),#AVX-512 (#BLOCKS=256)
+cnn_inference_amx,40,0,2056,0
+cnn_inference_mix,40,116,2056,7172
+mem_format_prop_avx,0,232,0,11320
+rnn_inference_amx,24,0,1284,0
+sgemm_avx,0,238,0,9058

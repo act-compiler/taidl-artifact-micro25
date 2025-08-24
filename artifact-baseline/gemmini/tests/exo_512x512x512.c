@@ -160,7 +160,7 @@ void gemm_free(uint32_t addr) {
   return;
 }
 
-typedef struct matmul_Context {
+typedef struct matmul_Context { 
 
   struct ConfigLoad {
       int_fast32_t src_stride;
@@ -188,13 +188,13 @@ typedef struct matmul_Context {
 
 void matmul_512x512x512( matmul_Context *ctxt, const float* scale, bool act, const int8_t* A, const int8_t* B, int8_t* C ) {
   gemmini_extended_config_st((512), (act), (scale)[0]);
-
+  
   gemmini_extended_config_ex(WS, 0, 0, 1, 0, 0);
-
+  
   gemmini_extended3_config_ld((512), 1.0f, 0, 2);
-
+  
   gemmini_extended3_config_ld((512), 1.0f, 0, 1);
-
+  
   gemmini_extended3_config_ld(0, 1.0f, 0, 0);
 
   #define io_max 16
@@ -342,7 +342,7 @@ int main() {
   #else
   print_matrix("A", A, 512, 512);
   print_matrix("B", B, 512, 512);
-  print_matrix("C", C, 512, 512);
+  print_matrix("C", C, 512, 512); 
   #endif
 #if CHECK_RESULT == 1
     if(full_is_equal(gold, C, 512, 512)){
