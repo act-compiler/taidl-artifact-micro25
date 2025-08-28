@@ -14,5 +14,7 @@ else
     exit 1
 fi
 
-echo "Building TAIDL image for $ARCH using $DOCKERFILE"
+cd $(dirname "$0")
+
+echo "Building TAIDL image $IMAGE_NAME"
 docker build -f "$DOCKERFILE" -t "$IMAGE_NAME" .

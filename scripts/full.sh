@@ -26,8 +26,8 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 ARCH=$(uname -m)
 
 if [[ "$ARCH" == "x86_64" ]]; then
-    IMAGE_NAME="devanshdvj/taidl-micro25-artifact:amd64"
-    BASELINE_IMAGE="devanshdvj/taidl-micro25-artifact:baseline-amd64"
+    TAIDL_IMAGE_NAME="devanshdvj/taidl-micro25-artifact:amd64"
+    BASELINE_IMAGE_NAME="devanshdvj/taidl-micro25-artifact:baseline-amd64"
     GPU_FLAG=$(command -v nvidia-smi >/dev/null 2>&1 && echo "--gpus all" || echo "")
 
     if [ -n "$GPU_FLAG" ]; then
@@ -50,9 +50,11 @@ else
     exit 1
 fi
 
+$HOST_MOUNT/scripts/setup.sh
+
 echo "=== Full Test Run Started at $(date) ==="
 echo "Log file: $LOG_FILE"
-echo "Running full tests with images: $IMAGE_NAME and $BASELINE_IMAGE"
+echo "Running full tests with images: $TAIDL_IMAGE_NAME and $BASELINE_IMAGE_NAME"
 
 # First run baseline in separate docker container
 echo
@@ -64,7 +66,7 @@ echo
 docker run --rm -t --name taidl-baseline \
     -v "$HOST_MOUNT:/workspace" \
     -w /workspace/artifact-baseline \
-    $BASELINE_IMAGE \
+    $BASELINE_IMAGE_NAME \
     bash -c "rm -rf /workspace/plots/csv/ && rm -rf /workspace/plots/pdf/ && ./full.sh $IBERT_FLAG && \
     chown -R ${UID_N}:${GID_N} /workspace/*"
 
@@ -83,7 +85,7 @@ echo
 docker run --rm --name taidl-main $GPU_FLAG \
     -v "$HOST_MOUNT:/taidl" \
     -w /taidl/artifact-taidl \
-    $IMAGE_NAME \
+    $TAIDL_IMAGE_NAME \
     bash -c "./run-tests.sh --trials 100 && \
     chown -R ${UID_N}:${GID_N} /taidl/*"
 

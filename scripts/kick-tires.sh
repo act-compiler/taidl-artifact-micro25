@@ -15,19 +15,21 @@ GID_N="$(id -g)"
 ARCH=$(uname -m)
 
 if [[ "$ARCH" == "x86_64" ]]; then
-    IMAGE_NAME="devanshdvj/taidl-micro25-artifact:amd64"
+    TAIDL_IMAGE_NAME="devanshdvj/taidl-micro25-artifact:amd64"
 elif [[ "$ARCH" == "arm64" ]] || [[ "$ARCH" == "aarch64" ]]; then
-    IMAGE_NAME="devanshdvj/taidl-micro25-artifact:arm64"
+    TAIDL_IMAGE_NAME="devanshdvj/taidl-micro25-artifact:arm64"
 else
     echo "Error: Unsupported architecture: $ARCH"
     exit 1
 fi
 
-echo "Running kick-tires plotting with image: $IMAGE_NAME"
+$HOST_MOUNT/scripts/setup.sh
+
+echo "Running kick-tires plotting with image: $TAIDL_IMAGE_NAME"
 
 docker run --rm --name taidl-main \
     -v "$HOST_MOUNT:/taidl" \
     -w /taidl/plots \
-    $IMAGE_NAME \
+    $TAIDL_IMAGE_NAME \
     bash -c "rm -rf /taidl/plots/csv/ && rm -rf /taidl/plots/pdf/ && bash reference_plots.sh && \
     chown -R ${UID_N}:${GID_N} /taidl/*"

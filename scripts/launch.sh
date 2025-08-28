@@ -15,7 +15,7 @@ GID_N="$(id -g)"
 ARCH=$(uname -m)
 
 if [[ "$ARCH" == "x86_64" ]]; then
-    IMAGE_NAME="devanshdvj/taidl-micro25-artifact:amd64"
+    TAIDL_IMAGE_NAME="devanshdvj/taidl-micro25-artifact:amd64"
     GPU_FLAG=$(command -v nvidia-smi >/dev/null 2>&1 && echo "--gpus all" || echo "")
 
     if [ -n "$GPU_FLAG" ]; then
@@ -30,12 +30,14 @@ if [[ "$ARCH" == "x86_64" ]]; then
         echo "No GPU detected. Running without GPU support."
     fi
 elif [[ "$ARCH" == "arm64" ]] || [[ "$ARCH" == "aarch64" ]]; then
-    IMAGE_NAME="devanshdvj/taidl-micro25-artifact:arm64"
+    TAIDL_IMAGE_NAME="devanshdvj/taidl-micro25-artifact:arm64"
     GPU_FLAG=""
 else
     echo "Error: Unsupported architecture: $ARCH"
     exit 1
 fi
+
+$HOST_MOUNT/scripts/setup.sh
 
 echo "Starting interactive TAIDL container for $ARCH"
 if [ -n "$GPU_FLAG" ]; then
@@ -45,11 +47,11 @@ fi
 docker run --rm -it $GPU_FLAG \
     -v "$HOST_MOUNT:/taidl" \
     -w /taidl \
-    $IMAGE_NAME \
+    $TAIDL_IMAGE_NAME \
     bash
 
 # Fix ownership
 docker run --rm --name taidl-main \
     -v "$HOST_MOUNT:/taidl" \
-    $IMAGE_NAME \
+    $TAIDL_IMAGE_NAME \
     bash -c "chown -R ${UID_N}:${GID_N} /taidl/*"

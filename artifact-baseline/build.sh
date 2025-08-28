@@ -11,5 +11,7 @@ if [ "$ARCH" != "x86_64" ]; then
     exit 1
 fi
 
-echo "Building baseline image for amd64 (includes Gemmini/Chipyard build - 30+ minutes)"
+cd $(dirname "$0")
+
+echo "Building baseline image $IMAGE_NAME (includes Gemmini/Chipyard build - 30+ minutes)"
 docker build -t "$IMAGE_NAME" .

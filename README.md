@@ -34,6 +34,7 @@ For NVIDIA GPU usage on amd64 systems, install the NVIDIA Container Toolkit usin
 
 `scripts/` directory contains the following bash scripts to automate the experimental workflows:
 
+- `setup.sh` -- load the necessary Docker images from local tarballs or [Docker Hub](https://hub.docker.com/r/devanshdvj/taidl-micro25-artifact).
 - `kick-tires.sh` -- regenerate paper figures from pre-evaluated data; does not benchmark the simulators.
 - `lite.sh` -- only benchmark TAIDL-TOs and verifies using pre-generated golden data; does not regenerate any golden data or run baselines.
 - `full.sh` -- benchmark TAIDL-TOs along with baselines; regenerates all golden data to verify TAIDL-TOs.
@@ -63,10 +64,35 @@ For NVIDIA GPU usage on amd64 systems, install the NVIDIA Container Toolkit usin
 
 ## Step-by-step Instructions to Reproduce Results
 
+### (Step 0) Setup the Docker Environment
+
+This will first try to load the necessary Docker images from tarballs locally present in `./` or `../` (i.e., current or parent directory).
+These tarballs, if not present, can be downloaded from [Zenodo](https://zenodo.org/record/16971223).
+
+If the tarballs are not found locally, it will try to pull the images from [Docker Hub](https://hub.docker.com/r/devanshdvj/taidl-micro25-artifact).
+
+This may take a 1-2 minutes if loading from local tarballs, or 4-5 minutes if pulling from Docker Hub.
+
+Run the setup script using:
+
+```bash
+./scripts/setup.sh
+```
+
+(Not recommended) Alternatively, if you have a machine with sufficient resources, you can build the Docker images locally using:
+
+```bash
+./scripts/setup.sh --build
+```
+
+This may take over an hour to build all images from scratch.
+
 ### (Step 1) Kick the Tires: Quick Plot Generation
 
-This script uses paper's benchmarking data (`./plots/paper_data/`) to quickly generate all figures without running any benchmarking experiments.
+This uses paper's benchmarking data (`./plots/paper_data/`) to quickly generate all figures without running any benchmarking experiments.
 These statistics were collected using Intel Xeon Platinum 8358 CPU and NVIDIA A100 GPU.
+
+Run the kick-tires script using:
 
 ```bash
 ./scripts/kick-tires.sh
@@ -87,7 +113,7 @@ It does not regenerate any data or run the baselines.
 This is useful for quickly verifying TAIDL-TO's correctness and performance.
 This would take around 2-5 minutes to run.
 
-Run using:
+Run the lite script using:
 
 ```bash
 ./scripts/lite.sh
@@ -111,11 +137,11 @@ Not generated in this step:
 
 ### (Step 3) Regenerate All Test Data and Benchmarking Results
 
-This will benchmark TAIDL-TO along with baselines Gemmini Spike and Intel SDE.
+This will benchmark TAIDL-TO along with baselines (Gemmini Spike and Intel SDE).
 The script will also generate new data files containing inputs and outputs from these tools, which are used to verify TAIDL-TO's output.
 This would take around 30-45 minutes to run.
 
-Run using:
+Run the full script using:
 
 ```bash
 ./scripts/full.sh
@@ -191,6 +217,7 @@ On the other extreme, for end-to-end models like I-BERT for Gemmini (DIM=256), T
   - `full_run_<timestamp>/` - Generated results from `full.sh` runs
   - `paper_data/` - Paper's benchmarking data for quick plot generation
 - `scripts/` - Automation scripts
+  - `setup.sh` - Setup TAIDL and baseline Docker environments
   - `kick-tires.sh` - Quick plot generation using pre-evaluated data
   - `lite.sh` - Run tests with subset of data
   - `full.sh` - Complete test suite with data regeneration
@@ -480,10 +507,18 @@ vectors = np.random.randint(-2, 2, size=(50, 16), dtype=np.int8)
 # Compile the simulation
 set_simulation_backend("CPU")
 _, compile_time = loop_kernel("fsim-compile")()
-print(f"Compilation time: {compile_time:.3f} ms")
 
 # Run the simulation
-_, runtime = loop_kernel("fsim")(vectors)
+outputs, runtime = loop_kernel("fsim")(vectors)
+
+golden = np.sum(vectors, axis=0)
+print("Golden: \t", golden)
+print("Result: \t", outputs[0])
+assert np.array_equal(golden, outputs[0]), "Result does not match golden!"
+print("Test passed!")
+
+print("\nBenchmarking statistics:")
+print(f"Compilation time: {compile_time:.3f} ms")
 print(f"Simulation time: {runtime:.3f} ms")
 ```
 
@@ -493,11 +528,16 @@ Run the kernel to see the output:
 cd /taidl/accelerators/toy && python3 run_loop.py
 ```
 
-**Expected output**: (values may differ based on your machine):
+**Expected output**: (benchmarking statistics may vary based on your machine)
 
 ```
-Compilation time: 92.650 ms
-Simulation time: 11.232 ms
+Golden:          [-13 -28 -14 -37 -19 -12 -18 -14 -23 -27 -27 -18 -30 -24 -34 -17]
+Result:          [-13 -28 -14 -37 -19 -12 -18 -14 -23 -27 -27 -18 -30 -24 -34 -17]
+Test passed!
+
+Benchmarking statistics:
+Compilation time: 116.406 ms
+Simulation time: 12.657 ms
 ```
 
 **Current directory structure**:
@@ -529,7 +569,7 @@ def loop_kernel():
     api.load(dst=0, addr=0)  # Load first vector to initialize reg[0]
 
     api.start_loop("i", 1, 50)       # (End value is exclusive)
-    api.load(dst=1, addr="16 * %i")  # Load vector i
+    api.load(dst=1, addr="16 * %i + 0")  # Load vector i
     api.add(dst=0, src1=0, src2=1)   # Accumulate into dst=0
     api.end_loop()
 
@@ -542,11 +582,16 @@ Run the kernel again to see the output:
 cd /taidl/accelerators/toy && python3 run_loop.py
 ```
 
-**Expected output**: (values may differ based on your machine):
+**Expected output**: (benchmarking statistics may vary based on your machine)
 
 ```
-Compilation time: 18.950 ms
-Simulation time: 11.334 ms
+Golden:          [-13 -28 -14 -37 -19 -12 -18 -14 -23 -27 -27 -18 -30 -24 -34 -17]
+Result:          [-13 -28 -14 -37 -19 -12 -18 -14 -23 -27 -27 -18 -30 -24 -34 -17]
+Test passed!
+
+Benchmarking statistics:
+Compilation time: 17.955 ms
+Simulation time: 12.668 ms
 ```
 
 You'll likely notice a significant speedup in compilation time compared to using native Python loops, especially as the loop count increases with little to no change in simulation time.
