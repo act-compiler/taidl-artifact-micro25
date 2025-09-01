@@ -1,5 +1,9 @@
 # TAIDL: Tensor Accelerator ISA Definition Language
 
+![Badge: Artifact Available](badges/artifacts_available_dl.jpg)
+![Badge: Artifact Evaluated - Functional](badges/artifacts_evaluated_functional_dl.jpg)
+![Badge: Artifact Evaluated - Reusable](badges/results_reproduced_dl.jpg)
+
 This is the artifact for our paper "TAIDL: Tensor Accelerator ISA Definition Language with Auto-generation of Scalable Test Oracles".
 In our paper, we present an ISA specification language for tensor accelerators and auto-generated test oracles (a.k.a. functional simulators).
 
